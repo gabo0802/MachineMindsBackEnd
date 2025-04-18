@@ -1,36 +1,42 @@
-from flask import Flask, request, jsonify
+from fastapi import FastAPI, Request
+from pydantic import BaseModel
 from joblib import load
 import pandas as pd
 import os
 
-app = Flask(__name__)
+app = FastAPI()
 
-# Load model once at startup
-model_path = os.path.join(os.path.dirname(__file__), 'difficulty_ai_weights_with_data_preprocessing2.joblib')
+# Load the model once on startup
+model_path = os.path.join(os.path.dirname(__file__), 'difficulty_ai_weights_REBUILT.joblib')
 model = load(model_path)
 
-@app.route('/predict', methods=['POST'])
-def predict_difficulty():
-    data = request.json
+# Define the expected input model
+class GameData(BaseModel):
+    currentDifficulty: float
+    currentPlayerLives: float
+    levelsBeat: float
+    playerLifeTimer: float
+    totalEnemiesKilled: float
+    totalPoints: float
+
+@app.get("/")
+def read_root():
+    return {"message": "ML API is live"}
+
+@app.post("/predict")
+async def predict_difficulty(data: GameData):
     try:
         x_value = pd.DataFrame([{
-            'currentDifficulty': data['currentDifficulty'],
-            'currentPlayerLives': data['currentPlayerLives'],
-            'levelsBeat': data['levelsBeat'],
-            'playerLifeTimer': data['playerLifeTimer'],
-            'totalEnemiesKilled': data['totalEnemiesKilled'],
-            'totalPoints': data['totalPoints']
+            'currentDifficulty': data.currentDifficulty,
+            'currentPlayerLives': data.currentPlayerLives,
+            'levelsBeat': data.levelsBeat,
+            'playerLifeTimer': data.playerLifeTimer,
+            'totalEnemiesKilled': data.totalEnemiesKilled,
+            'totalPoints': data.totalPoints
         }])
 
         prediction = model.predict(x_value)[0]
-        return jsonify({'prediction': int(prediction)})
+        return {"prediction": int(prediction)}
 
     except Exception as e:
-        return jsonify({'error': str(e)}), 400
-
-@app.route('/')
-def home():
-    return 'ML API is live'
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=81)
+        return {"error": str(e)}
